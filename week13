@@ -1,0 +1,160 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => HabitProvider(),
+      child: HabitTrackerApp(),
+    ),
+  );
+}
+
+class HabitTrackerApp extends StatelessWidget {
+  const HabitTrackerApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Habit Tracker',
+      home: HabitListScreen(),
+    );
+  }
+}
+
+class HabitListScreen extends StatelessWidget {
+  const HabitListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<HabitProvider>(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Habit Tracker'),
+      ),
+      body: ListView.builder(
+        itemCount: provider.habits.length,
+        itemBuilder: (context, index) {
+          final habit = provider.habits[index];
+          return ListTile(
+            title: Text(habit.name),
+            trailing: Checkbox(
+              value: habit.isCompleted,
+              onChanged: (value) {
+                provider.toggleHabitCompletion(index);
+              },
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: const Icon(Icons.add),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AddHabitScreen(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class AddHabitScreen extends StatelessWidget {
+  final TextEditingController _controller = TextEditingController();
+
+  AddHabitScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<HabitProvider>(context, listen: false);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Add Habit'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _controller,
+              decoration: const InputDecoration(labelText: 'Habit Name'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                final habitName = _controller.text.trim();
+                if (habitName.isNotEmpty) {
+                  provider.addHabit(habitName);
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class Habit {
+  final String name;
+  bool isCompleted;
+
+  Habit({required this.name, this.isCompleted = false});
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'isCompleted': isCompleted,
+      };
+
+  static Habit fromJson(Map<String, dynamic> json) => Habit(
+        name: json['name'],
+        isCompleted: json['isCompleted'],
+      );
+}
+
+class HabitProvider extends ChangeNotifier {
+  List<Habit> _habits = [];
+
+  List<Habit> get habits => _habits;
+
+  HabitProvider() {
+    _loadHabits();
+  }
+
+  void addHabit(String name) {
+    _habits.add(Habit(name: name));
+    _saveHabits();
+    notifyListeners();
+  }
+
+  void toggleHabitCompletion(int index) {
+    _habits[index].isCompleted = !_habits[index].isCompleted;
+    _saveHabits();
+    notifyListeners();
+  }
+
+  Future<void> _saveHabits() async {
+    final prefs = await SharedPreferences.getInstance();
+    final habitJson = _habits.map((e) => e.toJson()).toList();
+    prefs.setString('habits', habitJson.toString());
+  }
+
+  Future<void> _loadHabits() async {
+    final prefs = await SharedPreferences.getInstance();
+    final habitString = prefs.getString('habits');
+    if (habitString != null) {
+      _habits = (habitString as List)
+          .map((e) => Habit.fromJson(e as Map<String, dynamic>))
+          .toList();
+      notifyListeners();
+    }
+  }
+}
